@@ -646,8 +646,16 @@ Provide a brief reflection and any strategy adjustments.
             directives.append(
                 "MOVING_VAN: ignore decorative box dialogue; walk RIGHT across the truck, step UP through the doorway, then press A once to exit."
             )
+        if self._is_in_player_house_first_floor(state):
+            directives.append(
+                "PLAYER HOUSE 1F: dialogue is over—move STRAIGHT to the door, then UP onto the stairs to reach the bedroom."
+            )
+        if self._is_in_player_house_second_floor(state):
+            directives.append(
+                "PLAYER BEDROOM: quickly walk to the clock at (5,1), press 'A', then 'UP and 'A' again to set it, then exit downstairs."
+            )
         if self._is_naming_screen(state):
-            directives.append("NAMING SCREEN: set the player name to 'A' or 'AA' immediately and confirm without extra letters.")
+            directives.append("NAMING SCREEN: set the player name to 'A' or 'AA' immediately and press 'START' to move to START button, press 'A' to confirm.")
         return directives
 
     def _extract_state_highlights(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -679,16 +687,23 @@ Provide a brief reflection and any strategy adjustments.
             if game_section.get("is_in_battle") or game_section.get("in_battle"):
                 return "battle"
             dialogue = game_section.get("dialogue_detected", {})
+            dialog_text = game_section.get("dialog_text") or state.get("dialogue")
             if isinstance(dialogue, dict) and dialogue.get("has_dialogue"):
                 return "dialogue"
+            if dialog_text:
+                return "dialogue"
+            menu_section = game_section.get("menu") or state.get("menu")
+            if menu_section:
+                return "menu"
             for key in ("context", "game_state", "mode"):
                 value = game_section.get(key)
-                if value:
+                if value and value not in ("dialog", "dialogue"):
                     return str(value)
         if state.get("battle_active"):
             return "battle"
-        if state.get("dialogue"):
-            return "dialogue"
+        menu_section = state.get("menu")
+        if menu_section:
+            return "menu"
         return "overworld"
 
     def _is_battle_active(self, state: Dict[str, Any]) -> bool:
@@ -721,6 +736,27 @@ Provide a brief reflection and any strategy adjustments.
         if isinstance(map_info, dict):
             name = str(map_info.get("name", "")).upper()
             if any(keyword in name for keyword in ("MOVING", "TRUCK", "VAN")):
+                return True
+        return False
+
+    def _is_in_player_house_first_floor(self, state: Dict[str, Any]) -> bool:
+        """Detect when the agent is on the first floor of the player's house."""
+        location = self._get_player_location(state).upper()
+        if "HOUSE" not in location or "1F" not in location:
+            return False
+        return any(token in location for token in ("PLAYER", "BRENDAN", "LITTLEROOT"))
+
+    def _is_in_player_house_second_floor(self, state: Dict[str, Any]) -> bool:
+        """Detect when the agent is upstairs in the player's bedroom."""
+        location = self._get_player_location(state).upper()
+        if "HOUSE" not in location:
+            return False
+        if "2F" in location or "BEDROOM" in location:
+            return True
+        map_info = state.get("map", {})
+        if isinstance(map_info, dict):
+            name = str(map_info.get("name", "")).upper()
+            if "HOUSE" in name and ("2F" in name or "BEDROOM" in name):
                 return True
         return False
 

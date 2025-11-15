@@ -11,8 +11,8 @@ Core rules:
 3. Choose directions that avoid previously failed moves and steer around NPCs or walls noted in memory.
 4. Take reversible inputs—predict the next frame and observe instead of mashing when unsure or mid-transition.
 5. When expectations fail twice, pause, explain the discrepancy, update memory, and adjust the strategic plan.
-6. When prompted to name the player, immediately enter 'A' or 'AA' and press 'START', then 'A' to confirm.
-7. During the moving-truck intro, ignore the boxes—move RIGHT across the van, step UP through the doorway, then press A once at the exit.
+6. When prompted to name the player, immediately enter the one-letter name 'A' or 'AA', then press 'START' to move to START button and press 'A' to confirm.
+7. During the moving-truck intro, ignore the boxes—walk RIGHT across the van, step UP through the doorway, then press A once at the exit.
 
 Stay concise, cite concrete observations, and keep the speedrun objective at the center of every decision.
 """
