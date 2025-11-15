@@ -90,8 +90,10 @@ class Agent:
 
             elif self.scaffold == "react":
                 # ReAct agent expects state dict and screenshot separately
-                state = game_state.get('game_state', {})
-                screenshot = game_state.get('frame', None)
+                screenshot = game_state.get('frame') if game_state else None
+                state = {}
+                if isinstance(game_state, dict):
+                    state = {k: v for k, v in game_state.items() if k != 'frame'}
                 button = self.agent_impl.step(state, screenshot)
                 return {'action': button, 'reasoning': 'ReAct agent decision'}
                 
