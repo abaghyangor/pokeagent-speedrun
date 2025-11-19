@@ -3,11 +3,12 @@ Agent modules for Pokemon Emerald speedrunning agent
 """
 
 from utils.vlm import VLM
-from .deprecated.action import action_step
-from .deprecated.memory import memory_step
-from .deprecated.perception import perception_step
-from .deprecated.planning import planning_step
-from .simple import SimpleAgent, get_simple_agent, simple_mode_processing_multiprocess, configure_simple_agent_defaults
+from .simple import (
+    SimpleAgent,
+    get_simple_agent,
+    simple_mode_processing_multiprocess,
+    configure_simple_agent_defaults,
+)
 from .react import ReActAgent, create_react_agent
 
 
@@ -48,25 +49,14 @@ class Agent:
         # Initialize agent based on scaffold
         self.scaffold = scaffold
         if scaffold == "simple":
-            # Use global SimpleAgent instance to enable checkpoint persistence
             self.agent_impl = get_simple_agent(self.vlm)
-            print(f"   Scaffold: Simple (direct frame->action)")
-            
-        elif scaffold == "react":
-            # Create ReAct agent
-            vlm_client = VLM(backend=backend, model_name=model_name, **vlm_kwargs)
-            self.agent_impl = create_react_agent(vlm_client=vlm_client, verbose=True)
-            print(f"   Scaffold: ReAct (Thought->Action->Observation)")
-
-        else:  # fourmodule (default)
-            # Four-module agent context
-            self.agent_impl = None  # Will use internal four-module processing
-            self.context = {
-                'perception_output': None,
-                'planning_output': None,
-                'memory': []
-            }
-            print(f"   Scaffold: Four-module (Perception->Planning->Memory->Action)")
+            print("   Scaffold: Simple (direct frame->action)")
+        else:
+            # Collapse both legacy 'react' and 'fourmodule' scaffolds into the
+            # new agentic reasoning pipeline.
+            self.scaffold = "react"
+            self.agent_impl = create_react_agent(vlm_client=self.vlm, verbose=getattr(args, "verbose", False))
+            print("   Scaffold: Agentic (Perception→Dialogue→Objectives→Action)")
     
     def step(self, game_state):
         """
@@ -83,68 +73,18 @@ class Agent:
         Returns:
             dict: Contains 'action' and optionally 'reasoning'
         """
-        if self.scaffold in ["simple", "react"]:
-            # Delegate to specific agent implementation
-            if self.scaffold == "simple":
-                return self.agent_impl.step(game_state)
+        if self.scaffold == "simple":
+            return self.agent_impl.step(game_state)
 
-            elif self.scaffold == "react":
-                # ReAct agent expects state dict and screenshot separately
-                screenshot = game_state.get('frame') if game_state else None
-                state = {}
-                if isinstance(game_state, dict):
-                    state = {k: v for k, v in game_state.items() if k != 'frame'}
-                button = self.agent_impl.step(state, screenshot)
-                return {'action': button, 'reasoning': 'ReAct agent decision'}
-                
-        else:
-            # Four-module processing (default)
-            try:
-                # 1. Perception - understand what's happening
-                perception_output = perception_step(
-                    self.vlm, 
-                    game_state, 
-                    self.context.get('memory', [])
-                )
-                self.context['perception_output'] = perception_output
-                
-                # 2. Planning - decide strategy
-                planning_output = planning_step(
-                    self.vlm, 
-                    perception_output, 
-                    self.context.get('memory', [])
-                )
-                self.context['planning_output'] = planning_output
-                
-                # 3. Memory - update context
-                memory_output = memory_step(
-                    perception_output, 
-                    planning_output, 
-                    self.context.get('memory', [])
-                )
-                self.context['memory'] = memory_output
-                
-                # 4. Action - choose button press
-                action_output = action_step(
-                    self.vlm, 
-                    game_state, 
-                    planning_output,
-                    perception_output
-                )
-                
-                return action_output
-                
-            except Exception as e:
-                print(f"❌ Agent error: {e}")
-                return None
+        # Agentic scaffold expects the full structured state
+        screenshot = game_state.get('frame') if isinstance(game_state, dict) else None
+        state = game_state if isinstance(game_state, dict) else {}
+        button = self.agent_impl.step(state, screenshot)
+        return {'action': button, 'reasoning': 'Agentic pipeline decision'}
 
 
 __all__ = [
     'Agent',
-    'action_step',
-    'memory_step',
-    'perception_step',
-    'planning_step',
     'SimpleAgent',
     'get_simple_agent',
     'simple_mode_processing_multiprocess',

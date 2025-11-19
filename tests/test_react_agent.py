@@ -15,16 +15,30 @@ import pytest
 import json
 import sys
 import os
+import types
 from unittest.mock import Mock, MagicMock, patch
 from PIL import Image
 
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Provide a lightweight mgba stub so imports succeed in CI environments without the emulator installed
+if "mgba" not in sys.modules:
+    mgba_stub = types.ModuleType("mgba")
+    mgba_stub.core = types.SimpleNamespace()
+    mgba_stub.log = types.SimpleNamespace(silence=lambda *args, **kwargs: None)
+    mgba_stub.image = types.SimpleNamespace(Image=object)
+    sys.modules["mgba"] = mgba_stub
+    sys.modules["mgba.core"] = mgba_stub.core
+    sys.modules["mgba.log"] = mgba_stub.log
+    sys.modules["mgba.image"] = mgba_stub.image
+    sys.modules["mgba._pylib"] = types.SimpleNamespace(ffi=None, lib=None)
+
 from agent.react import (
     ReActAgent, ActionType, Thought, Action, 
     Observation, ReActStep
 )
+from agent.tools.coordinate_tools import CoordinateCalibrator
 
 
 class TestReActAgent:
@@ -212,6 +226,17 @@ JUSTIFICATION: Try to interact"""
         assert step.thought is not None
         assert step.action is not None
         assert step.step_number == 1
+
+    def test_position_fallback_from_map(self, agent):
+        state = {"map": {"player_coords": {"x": 5, "y": 7}}}
+        assert agent._get_player_position_tuple(state) == (5, 7)
+
+    def test_coordinate_calibrator_uses_map_coords(self):
+        calibrator = CoordinateCalibrator()
+        state = {"map": {"player_coords": {"x": 42, "y": 13}}}
+        result = calibrator.update(state)
+        assert result.coords == (42, 13)
+        assert result.raw == (42, 13)
     
     def test_action_to_button_conversion(self, agent):
         """Test converting actions to button commands"""
@@ -395,7 +420,7 @@ JUSTIFICATION: Try to interact"""
         changes = {"position_changed": True}
         summary = agent._summarize_changes(changes, sample_state)
         assert "Player moved to" in summary
-        assert "{'x': 10, 'y': 20}" in summary
+        assert "(10, 20)" in summary
     
     def test_reflection_trigger(self, agent, mock_vlm_client, sample_state, sample_screenshot):
         """Test that reflection triggers every 10 steps"""
